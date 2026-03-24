@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Online Do'kon Mini App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --main-color: #248b92;
+            --bg-color: #f4f4f4;
+            --white: #ffffff;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background: var(--bg-color); color: #333; }
+        header { background: var(--main-color); color: var(--white); padding: 15px; text-align: center; position: sticky; top: 0; z-index: 100; }
+        
+        /* Til tanlash */
+        .lang-switch { display: flex; justify-content: center; gap: 10px; margin: 10px 0; }
+        button.lang-btn { border: none; background: #ddd; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
+        button.lang-btn.active { background: var(--main-color); color: white; }
+
+        /* Katalog */
+        .container { padding: 15px; }
+        .product-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .product-card { background: var(--white); border-radius: 12px; padding: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); text-align: center; }
+        .product-card img { max-width: 100%; border-radius: 8px; height: 120px; object-fit: cover; }
+        .product-card h3 { font-size: 16px; margin: 10px 0 5px; }
+        .product-card p { color: var(--main-color); font-weight: bold; margin-bottom: 10px; }
+        .add-btn { background: var(--main-color); color: white; border: none; padding: 8px 15px; border-radius: 5px; width: 100%; cursor: pointer; }
+
+        /* Savat va Admin */
+        .cart-section, .admin-section { display: none; background: var(--white); margin-top: 20px; padding: 15px; border-radius: 12px; }
+        .nav-tabs { display: flex; justify-content: space-around; background: var(--white); padding: 10px; position: fixed; bottom: 0; width: 100%; box-shadow: 0 -2px 5px rgba(0,0,0,0.1); }
+        .nav-item { cursor: pointer; font-weight: bold; color: #666; }
+        .nav-item.active { color: var(--main-color); }
+
+        /* Admin form */
+        input, select { width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        .admin-btn { background: #28a745; color: white; border: none; padding: 10px; width: 100%; border-radius: 5px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h2 id="app-title">Online Do'kon</h2>
+    <div class="lang-switch">
+        <button class="lang-btn active" onclick="changeLang('uz')">UZ</button>
+        <button class="lang-btn" onclick="changeLang('ru')">RU</button>
+        <button class="lang-btn" onclick="changeLang('en')">EN</button>
+    </div>
+</header>
+
+<div class="container">
+    <div id="catalog-page">
+        <div class="product-grid" id="product-list">
+            </div>
+    </div>
+
+    <div id="cart-page" class="cart-section">
+        <h3 id="cart-title">Savat</h3>
+        <div id="cart-items"></div>
+        <hr>
+        <p id="total-price-text">Jami: 0 so'm</p>
+        <select id="payment-method">
+            <option value="cash">Naqd / Наличные</option>
+            <option value="payme">Payme</option>
+            <option value="click">Click</option>
+        </select>
+        <button class="admin-btn" onclick="checkout()" id="order-btn">Buyurtma berish</button>
+    </div>
+
+    <div id="admin-page" class="admin-section">
+        <h3>Admin Panel</h3>
+        <input type="text" id="p-name" placeholder="Mahsulot nomi">
+        <input type="number" id="p-price" placeholder="Narxi">
+        <input type="text" id="p-img" placeholder="Rasm URL (masalan: https://...)">
+        <button class="admin-btn" onclick="addNewProduct()">Qo'shish</button>
+    </div>
+</div>
+
+<div style="height: 80px;"></div> <div class="nav-tabs">
+    <div class="nav-item active" onclick="showPage('catalog')" id="nav-cat">Katalog</div>
+    <div class="nav-item" onclick="showPage('cart')" id="nav-cart">Savat (0)</div>
+    <div class="nav-item" onclick="showPage('admin')">Admin</div>
+</div>
+
+<script>
+    let tg = window.Telegram.WebApp;
+    tg.expand();
+
+    let currentLang = 'uz';
+    let cart = [];
+    let products = [
+        { id: 1, name: 'Smartfon', price: 3000000, img: 'https://via.placeholder.com/150' },
+        { id: 2, name: 'Quloqchin', price: 500000, img: 'https://via.placeholder.com/150' }
+    ];
+
+    const translations = {
+        uz: { title: "Online Do'kon", cat: "Katalog", cart: "Savat", total: "Jami", order: "Buyurtma berish" },
+        ru: { title: "Онлайн Магазин", cat: "Каталог", cart: "Корзина", total: "Итого", order: "Оформить заказ" },
+        en: { title: "Online Store", cat: "Catalog", cart: "Cart", total: "Total", order: "Checkout" }
+    };
+
+    function changeLang(lang) {
+        currentLang = lang;
+        document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        updateUI();
+    }
+
+    function updateUI() {
+        document.getElementById('app-title').innerText = translations[currentLang].title;
+        document.getElementById('nav-cat').innerText = translations[currentLang].cat;
+        document.getElementById('cart-title').innerText = translations[currentLang].cart;
+        document.getElementById('order-btn').innerText = translations[currentLang].order;
+        renderProducts();
+    }
+
+    function renderProducts() {
+        const list = document.getElementById('product-list');
+        list.innerHTML = '';
+        products.forEach(p => {
+            list.innerHTML += `
+                <div class="product-card">
+                    <img src="${p.img}" alt="${p.name}">
+                    <h3>${p.name}</h3>
+                    <p>${p.price.toLocaleString()} so'm</p>
+                    <button class="add-btn" onclick="addToCart(${p.id})">+ Qo'shish</button>
+                </div>
+            `;
+        });
+    }
+
+    function addToCart(id) {
+        const product = products.find(p => p.id === id);
+        cart.push(product);
+        document.getElementById('nav-cart').innerText = `${translations[currentLang].cart} (${cart.length})`;
+        tg.HapticFeedback.impactOccurred('medium');
+    }
+
+    function showPage(page) {
+        document.getElementById('catalog-page').style.display = (page === 'catalog') ? 'block' : 'none';
+        document.getElementById('cart-page').style.display = (page === 'cart') ? 'block' : 'none';
+        document.getElementById('admin-page').style.display = (page === 'admin') ? 'block' : 'none';
+        
+        if(page === 'cart') renderCart();
+    }
+
+    function renderCart() {
+        const cartDiv = document.getElementById('cart-items');
+        cartDiv.innerHTML = '';
+        let total = 0;
+        cart.forEach((item, index) => {
+            total += item.price;
+            cartDiv.innerHTML += `<p>${index+1}. ${item.name} - ${item.price.toLocaleString()} so'm</p>`;
+        });
+        document.getElementById('total-price-text').innerText = `${translations[currentLang].total}: ${total.toLocaleString()} so'm`;
+    }
+
+    function addNewProduct() {
+        const name = document.getElementById('p-name').value;
+        const price = parseInt(document.getElementById('p-price').value);
+        const img = document.getElementById('p-img').value || 'https://via.placeholder.com/150';
+
+        if(name && price) {
+            products.push({ id: Date.now(), name, price, img });
+            alert("Mahsulot qo'shildi!");
+            showPage('catalog');
+        }
+    }
+
+    function checkout() {
+        if(cart.length === 0) return alert("Savat bo'sh!");
+        
+        const method = document.getElementById('payment-method').value;
+        let data = {
+            user: tg.initDataUnsafe.user?.first_name || "Mijoz",
+            items: cart,
+            payment: method,
+            total: cart.reduce((a, b) => a + b.price, 0)
+        };
+        
+        tg.sendData(JSON.stringify(data)); // Botga ma'lumot yuborish
+    }
+
+    renderProducts();
+</script>
+
+</body>
+</html>
